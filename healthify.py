@@ -35,46 +35,94 @@ def query_hf_assistant(user_input):
 #################################################
 
 
-def install_package(package):
-    """Install a package using pip"""
+def install_from_requirements(requirements_file='requirements.txt'):
+    """Install packages from requirements file"""
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+        if not os.path.exists(requirements_file):
+            st.error(f"Requirements file '{requirements_file}' not found!")
+            return False
+        
+        st.info("📦 Installing packages from requirements.txt...")
+        
+        with st.spinner("Installing packages..."):
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", requirements_file],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+        
+        st.success("✅ All packages installed successfully!")
         return True
-    except subprocess.CalledProcessError:
+        
+    except subprocess.CalledProcessError as e:
+        st.error(f"❌ Failed to install packages: {e}")
         return False
 
-
 def check_and_install_requirements():
-    """Check and install required packages"""
-    required_packages = {
-        "streamlit": "streamlit>=1.28.0",
-        "pandas": "pandas>=2.0.0",
-        "numpy": "numpy>=1.24.0",
-        "plotly": "plotly>=5.15.0",
-    }
+    """Check and install required packages from requirements.txt"""
+    requirements_file = 'requirements.txt'
+    
+    # If requirements.txt doesn't exist, create it
+    if not os.path.exists(requirements_file):
+        create_requirements_file()
+    
+    try:
+        # Read requirements
+        with open(requirements_file, 'r') as f:
+            requirements = [line.strip() for line in f.readlines() 
+                          if line.strip() and not line.strip().startswith('#')]
+        
+        missing_packages = []
+        
+        # Check each package
+        for requirement in requirements:
+            package_name = requirement.split('==')[0].split('>=')[0].split('<=')[0]
+            try:
+                __import__(package_name)
+            except ImportError:
+                missing_packages.append(requirement)
+        
+        # Install missing packages
+        if missing_packages:
+            print(f"Installing {len(missing_packages)} missing packages...")
+            install_from_requirements(requirements_file)
+            
+            # Restart the application
+            print("🔄 Restarting application...")
+            os.execv(sys.executable, ["python"] + sys.argv)
+            
+    except Exception as e:
+        st.error(f"Error checking requirements: {e}")
 
-    missing_packages = []
+def create_requirements_file():
+    """Create requirements.txt file for your healthcare app"""
+    requirements_content = """# Healthcare Plus Requirements
+streamlit>=1.28.0
+pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.15.0
+requests>=2.31.0
+"""
+    
+    with open('requirements.txt', 'w') as f:
+        f.write(requirements_content)
+    
+    print("✅ Created requirements.txt file")
 
-    for package_name, package_spec in required_packages.items():
-        try:
-            __import__(package_name)
-        except ImportError:
-            missing_packages.append(package_spec)
+# Replace your existing check_and_install_requirements() call with:
+check_and_install_requirements()
 
-    if missing_packages:
-        print("Installing missing packages...")
-        for package in missing_packages:
-            print(f"Installing {package}...")
-            if install_package(package):
-                print(f"✅ Successfully installed {package}")
-            else:
-                print(f"❌ Failed to install {package}")
-                print("Please install manually using: pip install -r requirements.txt")
-                sys.exit(1)
+# Then continue with your existing imports
+try:
+    import plotly.express as px
+    import plotly.graph_objects as g
+except ImportError as e:
+    st.error(f"Failed to import required modules: {e}")
+    st.info("Please run: pip install -r requirements.txt")
+    st.stop()
 
-        print("🔄 Restarting application with new packages...")
-        # Restart the script
-        os.execv(sys.executable, ["python"] + sys.argv)
+# Rest of your existing code continues here..
 
 
 # Check and install requirements before importing other modules
